@@ -1,0 +1,10 @@
+hermes.log
+test_directory/*
+sdc_aws_fswatcher.service
+venv/
+```
+*.egg-info/
+```
+build/  
+__pycache__/
+```
