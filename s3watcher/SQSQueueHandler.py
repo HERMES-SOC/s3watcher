@@ -2,15 +2,14 @@ import boto3
 import boto3.s3.transfer as s3transfer
 import botocore
 import datetime
-import concurrent.futures
 from multiprocessing import Process, Queue
 
-from sdc_aws_s3watcher import log
-from SQSHandlerEvent import SQSHandlerEvent
-from SQSQueueHandlerConfig import SQSQueueHandlerConfig
+from s3watcher import log
+from s3watcher.SQSHandlerEvent import SQSHandlerEvent
+from s3watcher.SQSQueueHandlerConfig import SQSQueueHandlerConfig
 
 """
-Utility functions for sdc_aws_fswatcher.
+Utility functions for s3watcher.
 """
 import os
 import time
@@ -20,7 +19,7 @@ class SQSQueueHandler():
 
     event_queue = Queue()
     event_history = []
-    event_history_limit = 10000
+    event_history_limit = 100000
 
     def __init__(self, config: SQSQueueHandlerConfig) -> None:
         
@@ -36,24 +35,22 @@ class SQSQueueHandler():
             self.session = (
                 boto3.session.Session(profile_name=config.profile)
                 if config.profile != ""
-                else boto3.session.Session()
+                else boto3.session.Session(region=os.getenv("AWS_REGION"))
             )
 
             # Create SQS client
-            self.sqs = self.session.client('sqs')
-
-            # Check if queue exists
-            self.sqs.get_queue_url(QueueName=config.queue_url)
-
-            # Set queue url
-            self.queue_url = config.queue_url
+            self.sqs = self.session.client('sqs', region_name=os.getenv("AWS_DEFAULT_REGION"))
 
             # Set queue name
-            self.queue_name = config.queue_url.split('/')[-1]
+            self.queue_name = config.queue_name
+
+            # Check if queue exists
+            self.queue_url = self.sqs.get_queue_url(QueueName=config.queue_name)['QueueUrl']
+
+
 
 
         except self.sqs.exceptions.QueueDoesNotExist:
-
             log.error(f'Error getting queue ({config.queue_url})')
             raise ValueError(f'Error getting queue ({config.queue_url})')
 
@@ -75,12 +72,12 @@ class SQSQueueHandler():
 
              # Initialize S3 Transfer Manager with concurrency limit
             botocore_config = botocore.config.Config(
-                max_pool_connections=self.concurrency_limit
+                max_pool_connections=10
             )
             s3client = self.session.client("s3", config=botocore_config)
             transfer_config = s3transfer.TransferConfig(
                 use_threads=True,
-                max_concurrency=self.concurrency_limit,
+                max_concurrency=10,
             )
             self.s3t = s3transfer.create_transfer_manager(s3client, transfer_config)
 
@@ -96,7 +93,7 @@ class SQSQueueHandler():
         log.info(f'Queue ({self.queue_name}) found')
         log.info('S3Watcher initialized successfully')
 
-    def get_messages(self, max_batch_size:int = 10) -> SQSHandlerEvent:
+    def get_messages(self, max_batch_size:int = 10) -> None:
         try:
             # Receive message from SQS queue
             response = self.sqs.receive_message(
@@ -115,7 +112,7 @@ class SQSQueueHandler():
 
             messages = response.get('Messages')
 
-            if messages:
+            if messages is not None:
                
                 # Queue messages
                 sqs_events = self.queue_messages(messages)
@@ -136,14 +133,13 @@ class SQSQueueHandler():
         # Initialize SQSHandlerEvent objects
         sqs_events = [SQSHandlerEvent(message) for message in messages]
 
-        # Delete messages from AWS SQS queue
-        [self.delete_message(event) for event in sqs_events]
-
         # Concatenate message batch to event array if events don't already exist in it
         for event in sqs_events:
             if event.message_id not in self.event_history:
                 self.event_history.append(event.message_id)
                 self.event_queue.put(event)
+                # Delete messages from AWS SQS queue
+                [self.delete_message(event) for event in sqs_events]
 
         # Clear event history if limit is reached
         self.clean_event_history()
@@ -187,21 +183,22 @@ class SQSQueueHandler():
 
         while True:
             
-            # Threadpool executor
-            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-                event = self.event_queue.get()
 
-                if event is None:
-                    return
+            event = self.event_queue.get()
 
-                # Get messages from queue
-                executor.submit(self.process_message(event))
+            if event is None:
+                return
+
+            self.process_message(event)
+            # Get messages from queue
+            # executor.submit(self.process_message(event))
 
 
 
-    def delete_message(self, sqs_event: SQSHandlerEvent) :
+    def delete_message(self, sqs_event: SQSHandlerEvent):
+        
         try:
-
+            
             # Delete received message from queue
             response = self.sqs.delete_message(
                 QueueUrl=self.queue_url,
@@ -231,6 +228,7 @@ class SQSQueueHandler():
             # Download file from S3
             self.s3t.download(self.bucket_name, file_key, self.download_path + file_key)
 
+            self._log(boto3_session=self.session, timestream_db=self.timestream_db, timestream_table=self.timestream_table, file_key=file_key, new_file_key=file_key, source_bucket=self.bucket_name, action_type='PUT', destination_bucket='External Server')
             log.info(f'Downloaded file ({file_key}) from S3 bucket ({self.bucket_name})')
 
         except Exception as e:
@@ -269,22 +267,15 @@ class SQSQueueHandler():
         log.info(f'Polling for messages on queue ({self.queue_name})')
         
         while True:
-            # Threadpool executor
-            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-
-                def thread_poll():
-                    # Poll for messages
-                    polling.poll(
-                        lambda: self.get_messages(),
-                        step=delay,
-                        poll_forever=True,
-                        check_success=lambda x: x is not None,
-                        exception_handler=lambda x: log.error(f'Error polling for messages on queue ({self.queue_name}): {x}')
-                    )
-
-
-                executor.submit(thread_poll)
-                time.sleep(delay)            
+            # Poll for messages
+            polling.poll(
+                lambda: self.get_messages(),
+                step=delay,
+                poll_forever=True,
+                check_success=lambda x: x is not None,
+                exception_handler=lambda x: log.error(f'Error polling for messages on queue ({self.queue_name}): {x}')
+            )
+            time.sleep(delay)            
             
             
     @staticmethod
@@ -340,7 +331,7 @@ class SQSQueueHandler():
                             },
                         ],
                         "MeasureName": "timestamp",
-                        "MeasureValue": str(datetime.utcnow().timestamp()),
+                        "MeasureValue": str(datetime.datetime.utcnow().timestamp()),
                         "MeasureValueType": "DOUBLE",
                     },
                 ],

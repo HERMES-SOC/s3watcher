@@ -62,6 +62,3 @@ class SQSHandlerEvent():
             return 'DELETE'
         else:
             raise ValueError("Error Parsing S3 Event Type from SQS Message Body")
-
-
-

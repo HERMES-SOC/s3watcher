@@ -1,0 +1,13 @@
+[Unit]
+Description=SDC AWS s3watcher
+
+[Service]
+Type=simple
+User=$SDC_SYSTEM_USER$
+ExecStart= $CURRENT_WORKING_DIRECTORY$/venv/bin/python3 -m s3watcher $SDC_AWS_WATCH_PATH$ $SDC_AWS_S3_BUCKET$ $SDC_AWS_TIMESTREAM_DB$ $SDC_AWS_TIMESTREAM_TABLE$ $SDC_AWS_CONCURRENCY_LIMIT$ $SDC_AWS_ALLOW_DELETE$
+WorkingDirectory=$CURRENT_WORKING_DIRECTORY$
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=sysinit.target

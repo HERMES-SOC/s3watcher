@@ -4,7 +4,7 @@ File System Handler Configuration Module
 
 from argparse import ArgumentParser
 import os
-from sdc_aws_s3watcher import log
+from s3watcher import log
 
 
 class SQSQueueHandlerConfig:
@@ -15,7 +15,7 @@ class SQSQueueHandlerConfig:
     def __init__(
         self,
         bucket_name: str,
-        queue_url: str,
+        queue_name: str,
         path: str = os.getcwd(),
         timestream_db: str = "",
         timestream_table: str = "",
@@ -29,7 +29,7 @@ class SQSQueueHandlerConfig:
 
         self.path = path
         self.bucket_name = bucket_name
-        self.queue_url = queue_url
+        self.queue_name = queue_name
         self.timestream_db = timestream_db
         self.timestream_table = timestream_table
         self.profile = profile
@@ -54,7 +54,7 @@ def create_argparse() -> ArgumentParser:
     parser.add_argument("-b", "--bucket_name", help="User name")
 
     # Add Argument to parse SQS Queue URL
-    parser.add_argument("-q", "--queue_url", help="Queue URL")
+    parser.add_argument("-q", "--queue_name", help="Queue Name")
 
     # Add Argument to parse Timestream Database Name
     parser.add_argument("-t", "--timestream_db", help="Timestream Database Name")
@@ -105,7 +105,7 @@ def get_args(args: ArgumentParser) -> dict:
     # Add the arguments to the dictionary
     args_dict["SDC_AWS_WATCH_PATH"] = args.directory
     args_dict["SDC_AWS_S3_BUCKET"] = args.bucket_name
-    args_dict["SDC_AWS_SQS_QUEUE_URL"] = args.queue_url
+    args_dict["SDC_AWS_SQS_QUEUE_NAME"] = args.queue_name
     args_dict["SDC_AWS_TIMESTREAM_DB"] = args.timestream_db
     args_dict["SDC_AWS_TIMESTREAM_TABLE"] = args.timestream_table
     args_dict["SDC_AWS_PROFILE"] = args.profile
@@ -114,25 +114,6 @@ def get_args(args: ArgumentParser) -> dict:
 
     # Return the arguments dictionary
     return args_dict
-
-
-def get_envvars() -> dict:
-    """
-    Function to get the environment variables and return them as a dictionary
-
-    :return: Dictionary of environment variables
-    :rtype: dict
-    """
-    # Initialize the environment variables dictionary
-    env_vars = {}
-
-    # Get the environment variables
-    variables = [vars for vars in os.environ if "SDC_AWS" in vars]
-    for var in variables:
-        env_vars[var] = os.environ[var]
-
-    # Return the environment variables dictionary
-    return env_vars
 
 
 def validate_config_dict(config: dict) -> bool:
@@ -145,8 +126,9 @@ def validate_config_dict(config: dict) -> bool:
     :rtype: bool
     """
 
+    print(config)
     # Check if the directory path and bucket name are provided
-    if config.get("SDC_") and config.get("SDC_AWS_S3_BUCKET"):
+    if config.get("SDC_AWS_WATCH_PATH") and config.get("SDC_AWS_SQS_QUEUE_NAME") and config.get("SDC_AWS_S3_BUCKET"):
         return True
     else:
         return False
@@ -162,33 +144,18 @@ def get_config() -> SQSQueueHandlerConfig:
 
     # Get the arguments and environment variables
     args = get_args(create_argparse())
-    env_vars = get_envvars()
-
+    print(args)
     if validate_config_dict(args):
         config = SQSQueueHandlerConfig(
             path=args.get("SDC_AWS_WATCH_PATH"),
             bucket_name=args.get("SDC_AWS_S3_BUCKET"),
-            queue_url=args.get("SDC_AWS_SQS_QUEUE_URL"),
+            queue_name=args.get("SDC_AWS_SQS_QUEUE_NAME"),
             timestream_db=args.get("SDC_AWS_TIMESTREAM_DB"),
             timestream_table=args.get("SDC_AWS_TIMESTREAM_TABLE"),
             profile=args.get("SDC_AWS_PROFILE"),
             concurrency_limit=args.get("SDC_AWS_CONCURRENCY_LIMIT"),
             allow_delete=args.get("SDC_AWS_ALLOW_DELETE"),
         )
-
-    # Check if the environment variables are valid
-    elif validate_config_dict(env_vars):
-        config = SQSQueueHandlerConfig(
-            path=env_vars.get("SDC_AWS_WATCH_PATH"),
-            bucket_name=env_vars.get("SDC_AWS_S3_BUCKET"),
-            queue_url=env_vars.get("SDC_AWS_SQS_QUEUE_URL"),
-            timestream_db=env_vars.get("SDC_AWS_TIMESTREAM_DB"),
-            timestream_table=env_vars.get("SDC_AWS_TIMESTREAM_TABLE"),
-            profile=env_vars.get("SDC_AWS_PROFILE"),
-            concurrency_limit=env_vars.get("SDC_AWS_CONCURRENCY_LIMIT"),
-            allow_delete=env_vars.get("SDC_AWS_ALLOW_DELETE"),
-        )
-    # If neither are valid, exit the program
     else:
         log.error(
             "Invalid configuration, please provide a directory path and S3 bucket name"

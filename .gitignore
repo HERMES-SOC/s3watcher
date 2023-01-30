@@ -1,8 +1,9 @@
-sdc_aws_fswatcher.service
+sdc_aws_s3watcher.service
 venv/
 ```
 *.egg-info/
 ```
 build/  
 __pycache__/
+*.log
 ```

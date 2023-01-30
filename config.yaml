@@ -5,14 +5,14 @@ SDC_SYSTEM_USER: "dbarrous"
 # S3 Bucket name to store the data
 SDC_AWS_S3_BUCKET: "damian-sam"
 
-# SQS Queue URL to get messages from
-SDC_AWS_SQS_QUEUE_URL: "https://sqs.us-east-1.amazonaws.com/123456789012/sdc-aws-s3-watcher"
+# SQS Queue NAME to get messages from
+SDC_AWS_SQS_QUEUE_NAME: "https://sqs.us-east-1.amazonaws.com/123456789012/sdc-aws-s3-watcher"
 
 # Path to download files to
 # SDC_AWS_WATCH_PATH: "/home/dbarrous/dbarrous/testdir"
 
 # # Timestream database name (Optional)
-# SDC_AWS_TIMESTREAM_DB: "sdc_aws_fswatcher"
+# SDC_AWS_TIMESTREAM_DB: "sdc_aws_s3watcher"
 
 # # Timestream table name (Optional)
 # SDC_AWS_TIMESTREAM_TABLE: "logs"
