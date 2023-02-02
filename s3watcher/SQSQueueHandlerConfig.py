@@ -128,7 +128,11 @@ def validate_config_dict(config: dict) -> bool:
 
     print(config)
     # Check if the directory path and bucket name are provided
-    if config.get("SDC_AWS_WATCH_PATH") and config.get("SDC_AWS_SQS_QUEUE_NAME") and config.get("SDC_AWS_S3_BUCKET"):
+    if (
+        config.get("SDC_AWS_WATCH_PATH")
+        and config.get("SDC_AWS_SQS_QUEUE_NAME")
+        and config.get("SDC_AWS_S3_BUCKET")
+    ):
         return True
     else:
         return False

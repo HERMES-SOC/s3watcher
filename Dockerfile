@@ -21,9 +21,9 @@ ADD . /s3watcher
 # Set the working directory
 WORKDIR /s3watcher
 
-# # Change ownership of watch directory to read/write
-# RUN chmod 777 /home/s3watcher/watch
-# Install sudo
+# Change where boto3 looks for credentials
+ENV AWS_SHARED_CREDENTIALS_FILE=/s3watcher/.aws/credentials
+
 # Install dependencies
 RUN pip install -r /s3watcher/requirements.txt
 

@@ -15,16 +15,19 @@ import os
 import time
 import polling
 
-class SQSQueueHandler():
+
+class SQSQueueHandler:
 
     event_queue = Queue()
     event_history = []
     event_history_limit = 100000
 
     def __init__(self, config: SQSQueueHandlerConfig) -> None:
-        
+
         # Set download path
-        self.download_path = config.path if config.path.endswith("/") else config.path + "/"
+        self.download_path = (
+            config.path if config.path.endswith("/") else config.path + "/"
+        )
 
         # Set concurrency limit
         self.concurrency_limit = config.concurrency_limit
@@ -39,30 +42,29 @@ class SQSQueueHandler():
             )
 
             # Create SQS client
-            self.sqs = self.session.client('sqs', region_name=os.getenv("AWS_DEFAULT_REGION"))
+            self.sqs = self.session.client("sqs")
 
             # Set queue name
             self.queue_name = config.queue_name
 
             # Check if queue exists
-            self.queue_url = self.sqs.get_queue_url(QueueName=config.queue_name)['QueueUrl']
-
-
-
+            self.queue_url = self.sqs.get_queue_url(QueueName=config.queue_name)[
+                "QueueUrl"
+            ]
 
         except self.sqs.exceptions.QueueDoesNotExist:
-            log.error(f'Error getting queue ({config.queue_url})')
-            raise ValueError(f'Error getting queue ({config.queue_url})')
+            log.error(f"Error getting queue ({config.queue_name})")
+            raise ValueError(f"Error getting queue ({config.queue_name})")
 
         except self.sqs.exceptions.ClientError:
-                
-                log.error(f'Error getting queue ({config.queue_url})')
-                raise ValueError(f'Error getting queue ({config.queue_url})')
+
+            log.error(f"Error getting queue ({config.queue_name})")
+            raise ValueError(f"Error getting queue ({config.queue_name})")
 
         # Check if bucket exists
         try:
             # Create S3 client
-            self.s3 = self.session.client('s3')
+            self.s3 = self.session.client("s3")
 
             # Check if bucket exists
             self.s3.head_bucket(Bucket=config.bucket_name)
@@ -70,10 +72,8 @@ class SQSQueueHandler():
             # Set bucket name
             self.bucket_name = config.bucket_name
 
-             # Initialize S3 Transfer Manager with concurrency limit
-            botocore_config = botocore.config.Config(
-                max_pool_connections=10
-            )
+            # Initialize S3 Transfer Manager with concurrency limit
+            botocore_config = botocore.config.Config(max_pool_connections=10)
             s3client = self.session.client("s3", config=botocore_config)
             transfer_config = s3transfer.TransferConfig(
                 use_threads=True,
@@ -83,37 +83,32 @@ class SQSQueueHandler():
 
         except self.s3.exceptions.ClientError:
 
-            log.error(f'Error getting bucket ({self.bucket_name})')
-            raise ValueError(f'Error getting bucket ({self.bucket_name})')
-        
+            log.error(f"Error getting bucket ({self.bucket_name})")
+            raise ValueError(f"Error getting bucket ({self.bucket_name})")
+
         self.timestream_db = config.timestream_db
         self.timestream_table = config.timestream_table
         self.allow_delete = config.allow_delete
 
-        log.info(f'Queue ({self.queue_name}) found')
-        log.info('S3Watcher initialized successfully')
+        log.info(f"Queue ({self.queue_name}) found")
+        log.info("S3Watcher initialized successfully")
 
-    def get_messages(self, max_batch_size:int = 10) -> None:
+    def get_messages(self, max_batch_size: int = 10) -> None:
         try:
             # Receive message from SQS queue
             response = self.sqs.receive_message(
                 QueueUrl=self.queue_url,
-                AttributeNames=[
-                    'SentTimestamp'
-                ],
+                AttributeNames=["SentTimestamp"],
                 MaxNumberOfMessages=max_batch_size,
-                MessageAttributeNames=[
-                    'All'
-                ],
-                VisibilityTimeout=0,
+                MessageAttributeNames=["All"],
+                VisibilityTimeout=30,
                 WaitTimeSeconds=0,
-
             )
 
-            messages = response.get('Messages')
+            messages = response.get("Messages")
 
             if messages is not None:
-               
+
                 # Queue messages
                 sqs_events = self.queue_messages(messages)
 
@@ -123,8 +118,7 @@ class SQSQueueHandler():
 
         except Exception as e:
 
-            log.error(f'Error getting messages from queue ({self.queue_url}): {e}')
-
+            log.error(f"Error getting messages from queue ({self.queue_url}): {e}")
 
     def queue_messages(self, messages: list):
         """
@@ -138,6 +132,7 @@ class SQSQueueHandler():
             if event.message_id not in self.event_history:
                 self.event_history.append(event.message_id)
                 self.event_queue.put(event)
+
                 # Delete messages from AWS SQS queue
                 [self.delete_message(event) for event in sqs_events]
 
@@ -146,35 +141,40 @@ class SQSQueueHandler():
 
         return sqs_events
 
-
-    def clean_event_history(self)-> None:
+    def clean_event_history(self) -> None:
         """
         Function to clean event history.
         """
         if len(self.event_history) > self.event_history_limit:
-            self.event_history = self.event_history[int(self.event_history_limit/2):]
-
+            self.event_history = self.event_history[int(self.event_history_limit / 2) :]
 
     def process_message(self, sqs_event: SQSHandlerEvent):
         """
         Function to process sqs event messages.
         """
         try:
-            if sqs_event.event_type == 'CREATE':
+            if sqs_event.event_type == "CREATE":
                 file_key = sqs_event.file_key
 
                 if file_key:
                     # Download file from S3
                     self.download_file_from_s3(file_key)
 
-                    if self.timestream_db and self.timestream_table not in [None, '']:
+                    if self.timestream_db and self.timestream_table not in [None, ""]:
                         # Write file to Timestream
-                        self._log(boto3_session=self.session, timestream_db=self.timestream_db, timestream_table=self.timestream_table, file_key=file_key, source_bucket=self.bucket_name, action_type=sqs_event.event_type)
-
+                        self._log(
+                            boto3_session=self.session,
+                            timestream_db=self.timestream_db,
+                            timestream_table=self.timestream_table,
+                            file_key=file_key,
+                            new_file_key=file_key,
+                            source_bucket=self.bucket_name,
+                            action_type="PUT",
+                            destination_bucket="External Server",
+                        )
 
         except Exception as e:
-            log.error(f'Error getting file key from message: {e}')
-
+            log.error(f"Error getting file key from message: {e}")
 
     def process_messages(self):
         """
@@ -182,7 +182,6 @@ class SQSQueueHandler():
         """
 
         while True:
-            
 
             event = self.event_queue.get()
 
@@ -193,27 +192,23 @@ class SQSQueueHandler():
             # Get messages from queue
             # executor.submit(self.process_message(event))
 
-
-
     def delete_message(self, sqs_event: SQSHandlerEvent):
-        
+
         try:
-            
+
             # Delete received message from queue
             response = self.sqs.delete_message(
-                QueueUrl=self.queue_url,
-                ReceiptHandle=sqs_event.receipt_handle
+                QueueUrl=self.queue_url, ReceiptHandle=sqs_event.receipt_handle
             )
 
-            if response.get('ResponseMetadata').get('HTTPStatusCode') == 200:
-                log.info(f'Deleted message from queue ({self.queue_url})')
+            if response.get("ResponseMetadata").get("HTTPStatusCode") == 200:
+                log.info(f"Deleted message from queue ({self.queue_url})")
 
             else:
-                log.error(f'Error deleting message from queue ({self.queue_url})')
-            
+                log.error(f"Error deleting message from queue ({self.queue_url})")
 
         except Exception as e:
-            log.error(f'Error deleting message from queue ({self.queue_url}): {e}')
+            log.error(f"Error deleting message from queue ({self.queue_url}): {e}")
 
     def download_file_from_s3(self, file_key: str):
         """
@@ -221,19 +216,23 @@ class SQSQueueHandler():
         """
         try:
             # Loop through file_key and create directory if it does not exist
-            file_key_split = file_key.split('/')
+            file_key_split = file_key.split("/")
             for i in range(len(file_key_split) - 1):
-                self.create_directory(self.download_path + '/'.join(file_key_split[:i+1]))
+                self.create_directory(
+                    self.download_path + "/".join(file_key_split[: i + 1])
+                )
 
             # Download file from S3
             self.s3t.download(self.bucket_name, file_key, self.download_path + file_key)
 
-            self._log(boto3_session=self.session, timestream_db=self.timestream_db, timestream_table=self.timestream_table, file_key=file_key, new_file_key=file_key, source_bucket=self.bucket_name, action_type='PUT', destination_bucket='External Server')
-            log.info(f'Downloaded file ({file_key}) from S3 bucket ({self.bucket_name})')
+            log.info(
+                f"Downloaded file ({file_key}) from S3 bucket ({self.bucket_name})"
+            )
 
         except Exception as e:
-            log.error(f'Error downloading file ({file_key}) from S3 bucket ({self.bucket_name}): {e}')
-            
+            log.error(
+                f"Error downloading file ({file_key}) from S3 bucket ({self.bucket_name}): {e}"
+            )
 
     def create_directory(self, directory: str):
         """
@@ -242,11 +241,9 @@ class SQSQueueHandler():
         try:
             if not os.path.exists(directory):
                 os.makedirs(directory)
-                log.info(f'Created directory ({directory})')
+                log.info(f"Created directory ({directory})")
         except Exception as e:
-            log.error(f'Error creating directory ({directory}): {e}')
-        
-
+            log.error(f"Error creating directory ({directory}): {e}")
 
     def start(self):
         """
@@ -254,18 +251,15 @@ class SQSQueueHandler():
         """
         # Poll on 10 threads
 
-        
-        p1 = Process(target = self.process_messages)
+        p1 = Process(target=self.process_messages)
         p1.start()
-        p2 = Process(target = self.poll)
+        p2 = Process(target=self.poll)
         p2.start()
-
-
 
     def poll(self, delay: int = 1):
 
-        log.info(f'Polling for messages on queue ({self.queue_name})')
-        
+        log.info(f"Polling for messages on queue ({self.queue_name})")
+
         while True:
             # Poll for messages
             polling.poll(
@@ -273,11 +267,11 @@ class SQSQueueHandler():
                 step=delay,
                 poll_forever=True,
                 check_success=lambda x: x is not None,
-                exception_handler=lambda x: log.error(f'Error polling for messages on queue ({self.queue_name}): {x}')
+                exception_handler=lambda x: log.error(
+                    f"Error polling for messages on queue ({self.queue_name}): {x}"
+                ),
             )
-            time.sleep(delay)            
-            
-            
+
     @staticmethod
     def _log(
         boto3_session,
