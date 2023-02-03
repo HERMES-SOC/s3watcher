@@ -2,15 +2,17 @@ import json
 
 
 class SQSHandlerEvent:
-    def __init__(self, sqs_message: dict) -> None:
+    def __init__(self, sqs_client: any, sqs_message: dict, queue_url: str) -> None:
         """
         Class Constructor
         """
+
         self.message_id = sqs_message.get("MessageId")
         self.receipt_handle = sqs_message.get("ReceiptHandle")
         message_body = json.loads(sqs_message.get("Body"))
         self.file_key = self.get_file_key(message_body)
         self.event_type = self.get_event_type(message_body)
+        self.queue_url = queue_url
         # Check if class attributes are not None
         if not self.message_id:
             raise ValueError("Error Parsing SQS Message ID")
@@ -20,6 +22,8 @@ class SQSHandlerEvent:
             raise ValueError("Error Parsing S3 Object Key from SQS Message Body")
         if not self.event_type:
             raise ValueError("Error Parsing S3 Event Type from SQS Message Body")
+        if not self.queue_url:
+            raise ValueError("Error Parsing SQS Queue URL")
 
     def __repr__(self) -> str:
         return f"SQSHandlerEvent({self.message_id}, {self.receipt_handle}, {self.file_key}, {self.event_type})"
@@ -71,3 +75,21 @@ class SQSHandlerEvent:
             return "DELETE"
         else:
             raise ValueError("Error Parsing S3 Event Type from SQS Message Body")
+
+    def delete_message(self, receipt_handle: str):
+
+        try:
+
+            # Delete received message from queue
+            response = self.sqs.delete_message(
+                QueueUrl=self.queue_url, ReceiptHandle=receipt_handle
+            )
+
+            if response.get("ResponseMetadata").get("HTTPStatusCode") == 200:
+                log.info(f"Deleted message from queue ({self.queue_url})")
+
+            else:
+                log.error(f"Error deleting message from queue ({self.queue_url})")
+
+        except Exception as e:
+            log.error(f"Error deleting message from queue ({self.queue_url}): {e}")

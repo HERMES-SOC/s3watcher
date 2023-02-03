@@ -43,7 +43,7 @@ class SQSQueueHandler:
 
             # Create SQS client
             self.sqs = self.session.client("sqs")
-
+            print(type(self.sqs))
             # Set queue name
             self.queue_name = config.queue_name
 
@@ -190,23 +190,6 @@ class SQSQueueHandler:
 
             self.process_message(event)
 
-    def delete_message(self, sqs_event: SQSHandlerEvent):
-
-        try:
-
-            # Delete received message from queue
-            response = self.sqs.delete_message(
-                QueueUrl=self.queue_url, ReceiptHandle=sqs_event.receipt_handle
-            )
-
-            if response.get("ResponseMetadata").get("HTTPStatusCode") == 200:
-                log.info(f"Deleted message from queue ({self.queue_url})")
-
-            else:
-                log.error(f"Error deleting message from queue ({self.queue_url})")
-
-        except Exception as e:
-            log.error(f"Error deleting message from queue ({self.queue_url}): {e}")
 
     def download_file_from_s3(self, file_key: str):
         """
