@@ -101,7 +101,7 @@ class SQSQueueHandler:
                 AttributeNames=["SentTimestamp"],
                 MaxNumberOfMessages=max_batch_size,
                 MessageAttributeNames=["All"],
-                VisibilityTimeout=30,
+                VisibilityTimeout=15,
                 WaitTimeSeconds=0,
             )
 
@@ -254,7 +254,7 @@ class SQSQueueHandler:
         p2 = Process(target=self.poll)
         p2.start()
 
-    def poll(self, delay: float = 0.1):
+    def poll(self):
 
         log.info(f"Polling for messages on queue ({self.queue_name})")
 
@@ -262,7 +262,6 @@ class SQSQueueHandler:
             # Poll for messages
             polling.poll(
                 lambda: self.get_messages(),
-                step=1,
                 poll_forever=True,
                 check_success=lambda x: x is not None,
                 exception_handler=lambda x: log.error(
