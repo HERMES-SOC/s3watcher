@@ -127,9 +127,6 @@ class SQSQueueHandler:
         # Initialize SQSHandlerEvent objects
         sqs_events = [SQSHandlerEvent(message) for message in messages]
 
-        # Delete messages from AWS SQS queue
-        [self.delete_message(event) for event in sqs_events]
-
         # Concatenate message batch to event array if events don't already exist in it
         for event in sqs_events:
             if event.message_id not in self.event_history:
@@ -160,6 +157,9 @@ class SQSQueueHandler:
                     # Download file from S3
                     self.download_file_from_s3(file_key)
 
+                    # Delete messages from AWS SQS queue
+                    self.delete_message(sqs_event)
+
                     if self.timestream_db and self.timestream_table not in [None, ""]:
                         # Write file to Timestream
                         self._log(
@@ -189,8 +189,6 @@ class SQSQueueHandler:
                 return
 
             self.process_message(event)
-            # Get messages from queue
-            # executor.submit(self.process_message(event))
 
     def delete_message(self, sqs_event: SQSHandlerEvent):
 
@@ -256,7 +254,7 @@ class SQSQueueHandler:
         p2 = Process(target=self.poll)
         p2.start()
 
-    def poll(self, delay: int = 1):
+    def poll(self, delay: float = 0.1):
 
         log.info(f"Polling for messages on queue ({self.queue_name})")
 
@@ -264,7 +262,7 @@ class SQSQueueHandler:
             # Poll for messages
             polling.poll(
                 lambda: self.get_messages(),
-                step=delay,
+                step=1,
                 poll_forever=True,
                 check_success=lambda x: x is not None,
                 exception_handler=lambda x: log.error(
