@@ -127,14 +127,14 @@ class SQSQueueHandler:
         # Initialize SQSHandlerEvent objects
         sqs_events = [SQSHandlerEvent(message) for message in messages]
 
+        # Delete messages from AWS SQS queue
+        [self.delete_message(event) for event in sqs_events]
+
         # Concatenate message batch to event array if events don't already exist in it
         for event in sqs_events:
             if event.message_id not in self.event_history:
                 self.event_history.append(event.message_id)
                 self.event_queue.put(event)
-
-                # Delete messages from AWS SQS queue
-                [self.delete_message(event) for event in sqs_events]
 
         # Clear event history if limit is reached
         self.clean_event_history()
