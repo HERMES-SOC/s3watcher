@@ -37,7 +37,7 @@ class SQSHandlerEvent:
 
     @staticmethod
     def get_file_key(message_body: str) -> str:
-
+        
         # Parse S3 Object Key from Body
         try:
             file_key = message_body.get("Records")[0].get("s3").get("object").get("key")
@@ -46,6 +46,7 @@ class SQSHandlerEvent:
 
         # Check if file_key is not None
         if not file_key:
+            print(message_body)
             raise ValueError("Error Parsing S3 Object Key from SQS Message Body")
 
         return file_key
