@@ -18,8 +18,11 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2
 # Add files to the container
 ADD . /s3watcher
 
-# Change s3watcher folder permissions
-RUN chmod -R 777 /s3watcher
+# Create download folder
+RUN mkdir /download
+
+# Change s3watcher and download folder permissions
+RUN chmod -R 777 /s3watcher /download
 
 # Set the working directory
 WORKDIR /s3watcher
