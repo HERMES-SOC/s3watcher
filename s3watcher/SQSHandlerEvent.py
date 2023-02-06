@@ -43,8 +43,7 @@ class SQSHandlerEvent:
 
         # Check if file_key is not None
         if not file_key:
-            print(self.receipt_handle)
-            print(message_body)
+            self.delete_message(sqs_client, self.receipt_handle)
             raise ValueError("Error Parsing S3 Object Key from SQS Message Body")
 
         return file_key
@@ -59,9 +58,8 @@ class SQSHandlerEvent:
 
         # Check if event_type is not None
         if not event_type:
-            print(self.receipt_handle)
-            print(message_body)
-            raise ValueError("Error Parsing S3 Event Type from SQS Message Body")
+            self.delete_message(sqs_client, self.receipt_handle)
+            raise ValueError("Error Parsing S3 Event Type from SQS Message Body - Removed Event")
 
         # Check if it is a Object Created/Updated/Deleted Event
         if "ObjectCreated" in event_type:
