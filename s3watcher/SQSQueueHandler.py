@@ -101,7 +101,7 @@ class SQSQueueHandler:
                 AttributeNames=["SentTimestamp"],
                 MaxNumberOfMessages=max_batch_size,
                 MessageAttributeNames=["All"],
-                VisibilityTimeout=15,
+                VisibilityTimeout=5,
                 WaitTimeSeconds=0,
             )
 
