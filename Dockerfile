@@ -36,5 +36,5 @@ RUN pip install -r /s3watcher/requirements.txt
 # Install s3watcher
 RUN pip install .
 
-# Run s3watcher
-CMD python s3watcher/__main__.py -d /download $SDC_AWS_SQS_QUEUE_NAME $SDC_AWS_S3_BUCKET $SDC_AWS_TIMESTREAM_DB $SDC_AWS_TIMESTREAM_TABLE $SDC_AWS_CONCURRENCY_LIMIT
+# # Run s3watcher
+# CMD python s3watcher/__main__.py -d /download $SDC_AWS_SQS_QUEUE_NAME $SDC_AWS_S3_BUCKET $SDC_AWS_TIMESTREAM_DB $SDC_AWS_TIMESTREAM_TABLE $SDC_AWS_CONCURRENCY_LIMIT
