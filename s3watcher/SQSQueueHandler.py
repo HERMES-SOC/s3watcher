@@ -125,7 +125,7 @@ class SQSQueueHandler:
         Function to queue messages.
         """
         # Initialize SQSHandlerEvent objects
-        sqs_events = [SQSHandlerEvent(self.sqs, message) for message in messages]
+        sqs_events = [SQSHandlerEvent(self.sqs, message, self.queue_url) for message in messages]
 
         # Concatenate message batch to event array if events don't already exist in it
         for event in sqs_events:
