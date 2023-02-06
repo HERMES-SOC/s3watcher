@@ -22,8 +22,8 @@ ADD . /s3watcher
 RUN mkdir /download
 
 # Change s3watcher and download folder permissions
-RUN chmod ugo+rwx /s3watcher && \
-    chmod ugo+rwx /download
+RUN chmod -R -f 777 /s3watcher && \
+    chmod -R -f 777 /download
 
 # Set the working directory
 WORKDIR /s3watcher
