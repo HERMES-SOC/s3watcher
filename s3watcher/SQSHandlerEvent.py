@@ -5,9 +5,7 @@ from s3watcher import log
 
 
 class SQSHandlerEvent:
-    def __init__(
-        self, sqs_client: Any, sqs_message: dict, queue_url: str
-    ) -> None:
+    def __init__(self, sqs_client: Any, sqs_message: dict, queue_url: str) -> None:
         """
         Class Constructor
         """
@@ -43,8 +41,10 @@ class SQSHandlerEvent:
 
         # Check if file_key is not None
         if not file_key:
-            self.delete_message(sqs_client, self.receipt_handle)
-            raise ValueError("Error Parsing S3 Object Key from SQS Message Body")
+            self.delete_message(sqs_client)
+            raise ValueError(
+                "Error Parsing S3 Object Key from SQS Message Body - Removed Event"
+            )
 
         return file_key
 
@@ -58,8 +58,10 @@ class SQSHandlerEvent:
 
         # Check if event_type is not None
         if not event_type:
-            self.delete_message(sqs_client, self.receipt_handle)
-            raise ValueError("Error Parsing S3 Event Type from SQS Message Body - Removed Event")
+            self.delete_message(sqs_client)
+            raise ValueError(
+                "Error Parsing S3 Event Type from SQS Message Body - Removed Event"
+            )
 
         # Check if it is a Object Created/Updated/Deleted Event
         if "ObjectCreated" in event_type:
@@ -67,15 +69,18 @@ class SQSHandlerEvent:
         elif "ObjectRemoved" in event_type:
             return "DELETE"
         else:
-            raise ValueError("Error Parsing S3 Event Type from SQS Message Body")
+            self.delete_message(sqs_client)
+            raise ValueError(
+                "Error Parsing S3 Event Type from SQS Message Body - Removed Event"
+            )
 
-    def delete_message(self, sqs_client: Any, receipt_handle: str):
+    def delete_message(self, sqs_client: Any):
 
         try:
 
             # Delete received message from queue
             response = sqs_client.delete_message(
-                QueueUrl=self.queue_url, ReceiptHandle=receipt_handle
+                QueueUrl=self.queue_url, ReceiptHandle=self.receipt_handle
             )
 
             if response.get("ResponseMetadata").get("HTTPStatusCode") == 200:

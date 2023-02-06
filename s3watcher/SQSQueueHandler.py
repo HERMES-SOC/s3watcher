@@ -125,7 +125,9 @@ class SQSQueueHandler:
         Function to queue messages.
         """
         # Initialize SQSHandlerEvent objects
-        sqs_events = [SQSHandlerEvent(self.sqs, message, self.queue_url) for message in messages]
+        sqs_events = [
+            SQSHandlerEvent(self.sqs, message, self.queue_url) for message in messages
+        ]
 
         # Concatenate message batch to event array if events don't already exist in it
         for event in sqs_events:
@@ -158,7 +160,7 @@ class SQSQueueHandler:
                     self.download_file_from_s3(file_key)
 
                     # Delete messages from AWS SQS queue
-                    self.delete_message(sqs_event)
+                    sqs_event.delete_message(self.sqs, self.queue_url)
 
                     if self.timestream_db and self.timestream_table not in [None, ""]:
                         # Write file to Timestream
