@@ -33,8 +33,7 @@ class SQSHandlerEvent:
         else:
             return False
 
-    @staticmethod
-    def get_file_key(sqs_client: Any, message_body: str) -> str:
+    def get_file_key(self, sqs_client: Any, message_body: str) -> str:
 
         # Parse S3 Object Key from Body
         try:
@@ -44,13 +43,13 @@ class SQSHandlerEvent:
 
         # Check if file_key is not None
         if not file_key:
+            print(self.receipt_handle)
             print(message_body)
             raise ValueError("Error Parsing S3 Object Key from SQS Message Body")
 
         return file_key
 
-    @staticmethod
-    def get_event_type(sqs_client: Any, message_body: str) -> str:
+    def get_event_type(self, sqs_client: Any, message_body: str) -> str:
 
         # Parse S3 Event Type from Body
         try:
@@ -60,6 +59,7 @@ class SQSHandlerEvent:
 
         # Check if event_type is not None
         if not event_type:
+            print(self.receipt_handle)
             print(message_body)
             raise ValueError("Error Parsing S3 Event Type from SQS Message Body")
 
