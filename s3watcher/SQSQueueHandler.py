@@ -160,7 +160,7 @@ class SQSQueueHandler:
                     self.download_file_from_s3(file_key)
 
                     # Delete messages from AWS SQS queue
-                    sqs_event.delete_message(self.sqs, self.queue_url)
+                    sqs_event.delete_message(self.sqs)
 
                     if self.timestream_db and self.timestream_table not in [None, ""]:
                         # Write file to Timestream
