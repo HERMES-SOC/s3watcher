@@ -18,17 +18,24 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2
 # Add files to the container
 ADD . /s3watcher
 
+# Create download folder
+RUN mkdir /download
+
+# Change s3watcher and download folder permissions
+RUN chmod -R -f 777 /s3watcher && \
+    chmod -R -f 777 /download
+
 # Set the working directory
 WORKDIR /s3watcher
 
-# # Change ownership of watch directory to read/write
-# RUN chmod 777 /home/s3watcher/watch
-# Install sudo
+# Change where boto3 looks for credentials
+ENV AWS_SHARED_CREDENTIALS_FILE=/s3watcher/.aws/credentials
+
 # Install dependencies
 RUN pip install -r /s3watcher/requirements.txt
 
 # Install s3watcher
 RUN pip install .
 
-# Run s3watcher
+# # Run s3watcher
 CMD python s3watcher/__main__.py -d /download $SDC_AWS_SQS_QUEUE_NAME $SDC_AWS_S3_BUCKET $SDC_AWS_TIMESTREAM_DB $SDC_AWS_TIMESTREAM_TABLE $SDC_AWS_CONCURRENCY_LIMIT

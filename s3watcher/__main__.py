@@ -22,7 +22,6 @@ def main() -> None:
     queue_handler.start()
 
 
-
 # Main Function
 if __name__ == "__main__":
     main()
