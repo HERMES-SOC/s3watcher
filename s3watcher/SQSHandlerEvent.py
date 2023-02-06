@@ -1,5 +1,6 @@
 import json
 import botocore
+from typing import Any
 from s3watcher import log
 
 
@@ -33,7 +34,7 @@ class SQSHandlerEvent:
             return False
 
     @staticmethod
-    def get_file_key(sqs_client: botocore.client.SQS, message_body: str) -> str:
+    def get_file_key(sqs_client: Any, message_body: str) -> str:
 
         # Parse S3 Object Key from Body
         try:
@@ -59,6 +60,7 @@ class SQSHandlerEvent:
 
         # Check if event_type is not None
         if not event_type:
+            print(message_body)
             raise ValueError("Error Parsing S3 Event Type from SQS Message Body")
 
         # Check if it is a Object Created/Updated/Deleted Event
