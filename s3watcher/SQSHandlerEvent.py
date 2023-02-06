@@ -6,7 +6,7 @@ from s3watcher import log
 
 class SQSHandlerEvent:
     def __init__(
-        self, sqs_client: botocore.client.SQS, sqs_message: dict, queue_url: str
+        self, sqs_client: Any, sqs_message: dict, queue_url: str
     ) -> None:
         """
         Class Constructor
