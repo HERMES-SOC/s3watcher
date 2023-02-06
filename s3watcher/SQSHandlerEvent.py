@@ -15,9 +15,9 @@ class SQSHandlerEvent:
         self.message_id = sqs_message.get("MessageId")
         self.receipt_handle = sqs_message.get("ReceiptHandle")
         message_body = json.loads(sqs_message.get("Body"))
+        self.queue_url = queue_url
         self.file_key = self.get_file_key(sqs_client, message_body)
         self.event_type = self.get_event_type(sqs_client, message_body)
-        self.queue_url = queue_url
 
     def __repr__(self) -> str:
         return f"SQSHandlerEvent({self.message_id}, {self.receipt_handle}, {self.file_key}, {self.event_type})"
