@@ -50,7 +50,7 @@ class SQSHandlerEvent:
         return file_key
 
     @staticmethod
-    def get_event_type(sqs_client: botocore.client.SQS, message_body: str) -> str:
+    def get_event_type(sqs_client: Any, message_body: str) -> str:
 
         # Parse S3 Event Type from Body
         try:
@@ -71,12 +71,12 @@ class SQSHandlerEvent:
         else:
             raise ValueError("Error Parsing S3 Event Type from SQS Message Body")
 
-    def delete_message(self, receipt_handle: str):
+    def delete_message(self, sqs_client: Any, receipt_handle: str):
 
         try:
 
             # Delete received message from queue
-            response = self.sqs.delete_message(
+            response = sqs_client.delete_message(
                 QueueUrl=self.queue_url, ReceiptHandle=receipt_handle
             )
 
