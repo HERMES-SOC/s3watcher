@@ -1,8 +1,12 @@
 import json
+import botocore
+from s3watcher import log
 
 
 class SQSHandlerEvent:
-    def __init__(self, sqs_client: any, sqs_message: dict, queue_url: str) -> None:
+    def __init__(
+        self, sqs_client: botocore.client.SQS, sqs_message: dict, queue_url: str
+    ) -> None:
         """
         Class Constructor
         """
@@ -10,20 +14,9 @@ class SQSHandlerEvent:
         self.message_id = sqs_message.get("MessageId")
         self.receipt_handle = sqs_message.get("ReceiptHandle")
         message_body = json.loads(sqs_message.get("Body"))
-        self.file_key = self.get_file_key(message_body)
-        self.event_type = self.get_event_type(message_body)
+        self.file_key = self.get_file_key(sqs_client, message_body)
+        self.event_type = self.get_event_type(sqs_client, message_body)
         self.queue_url = queue_url
-        # Check if class attributes are not None
-        if not self.message_id:
-            raise ValueError("Error Parsing SQS Message ID")
-        if not self.receipt_handle:
-            raise ValueError("Error Parsing SQS Receipt Handle")
-        if not self.file_key:
-            raise ValueError("Error Parsing S3 Object Key from SQS Message Body")
-        if not self.event_type:
-            raise ValueError("Error Parsing S3 Event Type from SQS Message Body")
-        if not self.queue_url:
-            raise ValueError("Error Parsing SQS Queue URL")
 
     def __repr__(self) -> str:
         return f"SQSHandlerEvent({self.message_id}, {self.receipt_handle}, {self.file_key}, {self.event_type})"
@@ -40,8 +33,8 @@ class SQSHandlerEvent:
             return False
 
     @staticmethod
-    def get_file_key(message_body: str) -> str:
-        
+    def get_file_key(sqs_client: botocore.client.SQS, message_body: str) -> str:
+
         # Parse S3 Object Key from Body
         try:
             file_key = message_body.get("Records")[0].get("s3").get("object").get("key")
@@ -56,7 +49,7 @@ class SQSHandlerEvent:
         return file_key
 
     @staticmethod
-    def get_event_type(message_body: str) -> str:
+    def get_event_type(sqs_client: botocore.client.SQS, message_body: str) -> str:
 
         # Parse S3 Event Type from Body
         try:
