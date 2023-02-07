@@ -1,5 +1,4 @@
 import json
-import botocore
 from typing import Any
 from s3watcher import log
 
