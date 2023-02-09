@@ -309,7 +309,7 @@ class SQSQueueHandler:
                                 "type": "section",
                                 "text": {
                                     "type": "plain_text",
-                                    "text": f"{ts} -{slack_message}",
+                                    "text": f"{ts} - {slack_message}",
                                 },
                             }
                         ],
