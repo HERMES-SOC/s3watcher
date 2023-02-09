@@ -44,7 +44,6 @@ class SQSQueueHandler:
 
             # Create SQS client
             self.sqs = self.session.client("sqs")
-            print(type(self.sqs))
             # Set queue name
             self.queue_name = config.queue_name
 

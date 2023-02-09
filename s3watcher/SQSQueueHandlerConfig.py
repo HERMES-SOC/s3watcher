@@ -146,7 +146,6 @@ def validate_config_dict(config: dict) -> bool:
     :rtype: bool
     """
 
-    print(config)
     # Check if the directory path and bucket name are provided
     if (
         config.get("SDC_AWS_WATCH_PATH")
@@ -168,7 +167,6 @@ def get_config() -> SQSQueueHandlerConfig:
 
     # Get the arguments and environment variables
     args = get_args(create_argparse())
-    print(args)
     if validate_config_dict(args):
         config = SQSQueueHandlerConfig(
             path=args.get("SDC_AWS_WATCH_PATH"),
