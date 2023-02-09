@@ -8,7 +8,7 @@ setup(
     author="Damian Barrous-Dume",
     packages=["s3watcher"],
     include_package_data=True,
-    install_requires=["boto3", "pyyaml", "polling"],
+    install_requires=["boto3", "pyyaml", "polling", "slack_sdk"],
     entry_points={
         "console_scripts": [
             "s3watcher = s3watcher.s3watcher:main",
