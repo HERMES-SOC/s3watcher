@@ -22,6 +22,8 @@ class SQSQueueHandlerConfig:
         profile: str = "",
         concurrency_limit: int = 20,
         allow_delete: bool = False,
+        slack_token: str = "",
+        slack_channel: str = "",
     ) -> None:
         """
         Class Constructor
@@ -35,6 +37,8 @@ class SQSQueueHandlerConfig:
         self.profile = profile
         self.concurrency_limit = concurrency_limit
         self.allow_delete = allow_delete
+        self.slack_token = slack_token
+        self.slack_channel = slack_channel
 
 
 def create_argparse() -> ArgumentParser:

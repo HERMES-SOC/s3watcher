@@ -104,7 +104,8 @@ These steps are to run S3Watcher using the docker container.
 3. Run the docker container with the correct configurations, modifying the `<VARIABLES>` as needed. Look at the Configurable Variables section for more information on the variables.
 
     ```bash
-    docker run -d --restart=always \
+    docker run -d \
+    --restart=always \
     -e SDC_AWS_S3_BUCKET='-b <SDC_AWS_S3_BUCKET>' \
     -e SDC_AWS_SQS_QUEUE_NAME='-q <SDC_AWS_SQS_QUEUE_NAME>'
     -e SDC_AWS_TIMESTREAM_DB='-t <SDC_AWS_TIMESTREAM_DB>' \
