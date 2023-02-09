@@ -294,9 +294,11 @@ class SQSQueueHandler:
         log.info(f"Sending Slack Notification to {slack_channel}")
         try:
             color = {
-                "success": "#36a64f",
+                "success": "#e67e22",
                 "error": "#ff0000",
             }
+            ct = datetime.datetime.now()
+            ts = ct.strftime("%y-%m-%d %H:%M:%S")
             slack_client.chat_postMessage(
                 channel=slack_channel,
                 attachments=[
@@ -307,7 +309,7 @@ class SQSQueueHandler:
                                 "type": "section",
                                 "text": {
                                     "type": "plain_text",
-                                    "text": f"{slack_message}",
+                                    "text": f"{ts} -{slack_message}",
                                 },
                             }
                         ],
