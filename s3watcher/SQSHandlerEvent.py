@@ -8,7 +8,7 @@ class SQSHandlerEvent:
         """
         Class Constructor
         """
-
+        print(sqs_message)
         self.message_id = sqs_message.get("MessageId")
         self.receipt_handle = sqs_message.get("ReceiptHandle")
         message_body = json.loads(sqs_message.get("Body"))
