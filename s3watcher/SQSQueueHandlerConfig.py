@@ -83,6 +83,20 @@ def create_argparse() -> ArgumentParser:
         help="Allow Delete Flag for the File System Watcher",
     )
 
+    # Add Argument to parse slack token
+    parser.add_argument(
+        "-s",
+        "--slack_token",
+        help="Token for Slack to send notifications",
+    )
+
+    # Add Argument to parse slack channel
+    parser.add_argument(
+        "-sc",
+        "--slack_channel",
+        help="Channel for Slack to send notifications",
+    )
+
     # Return the Argument Parser
     return parser
 
@@ -111,6 +125,8 @@ def get_args(args: ArgumentParser) -> dict:
     args_dict["SDC_AWS_PROFILE"] = args.profile
     args_dict["SDC_AWS_CONCURRENCY_LIMIT"] = args.concurrency_limit_limit
     args_dict["SDC_AWS_ALLOW_DELETE"] = args.allow_delete
+    args_dict["SDC_AWS_SLACK_TOKEN"] = args.slack_token
+    args_dict["SDC_AWS_SLACK_CHANNEL"] = args.slack_channel
 
     # Return the arguments dictionary
     return args_dict
@@ -159,6 +175,8 @@ def get_config() -> SQSQueueHandlerConfig:
             profile=args.get("SDC_AWS_PROFILE"),
             concurrency_limit=args.get("SDC_AWS_CONCURRENCY_LIMIT"),
             allow_delete=args.get("SDC_AWS_ALLOW_DELETE"),
+            slack_token=args.get("SDC_AWS_SLACK_TOKEN"),
+            slack_channel=args.get("SDC_AWS_SLACK_CHANNEL"),
         )
     else:
         log.error(

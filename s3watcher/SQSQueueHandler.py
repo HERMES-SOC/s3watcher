@@ -1,9 +1,13 @@
+import os
+import time
+import polling
 import boto3
 import boto3.s3.transfer as s3transfer
 import botocore
 import datetime
 from multiprocessing import Process, Queue
-
+from slack_sdk import WebClient
+from slack_sdk.errors import SlackApiError
 from s3watcher import log
 from s3watcher.SQSHandlerEvent import SQSHandlerEvent
 from s3watcher.SQSQueueHandlerConfig import SQSQueueHandlerConfig
@@ -11,9 +15,6 @@ from s3watcher.SQSQueueHandlerConfig import SQSQueueHandlerConfig
 """
 Utility functions for s3watcher.
 """
-import os
-import time
-import polling
 
 
 class SQSQueueHandler:
@@ -90,6 +91,23 @@ class SQSQueueHandler:
         self.timestream_table = config.timestream_table
         self.allow_delete = config.allow_delete
 
+        try:
+            # Initialize the slack client
+            self.slack_client = WebClient(token=config.slack_token)
+
+            # Initialize the slack channel
+            self.slack_channel = config.slack_channel
+
+        except SlackApiError as e:
+            error_code = int(e.response["Error"]["Code"])
+            if error_code == 404:
+                log.error(
+                    {
+                        "status": "ERROR",
+                        "message": f"Slack Token ({config.slack_token}) is invalid",
+                    }
+                )
+
         log.info(f"Queue ({self.queue_name}) found")
         log.info("S3Watcher initialized successfully")
 
@@ -158,6 +176,15 @@ class SQSQueueHandler:
                 if file_key:
                     # Download file from S3
                     self.download_file_from_s3(file_key)
+
+                    # Send Slack Notification about the event
+                    if self.slack_client is not None:
+                        slack_message = f"S3Watcher: New file downloaded from bucket {self.bucket_name} - ({file_key}) :bucket:"
+                        self._send_slack_notification(
+                            slack_client=self.slack_client,
+                            slack_channel=self.slack_channel,
+                            slack_message=slack_message,
+                        )
 
                     # Delete messages from AWS SQS queue
                     sqs_event.delete_message(self.sqs)
@@ -252,6 +279,45 @@ class SQSQueueHandler:
                 exception_handler=lambda x: log.error(
                     f"Error polling for messages on queue ({self.queue_name}): {x}"
                 ),
+            )
+
+    @staticmethod
+    def _send_slack_notification(
+        slack_client,
+        slack_channel: str,
+        slack_message: str,
+        alert_type: str = "success",
+    ) -> None:
+        """
+        Function to send a Slack Notification
+        """
+        log.info(f"Sending Slack Notification to {slack_channel}")
+        try:
+            color = {
+                "success": "#36a64f",
+                "error": "#ff0000",
+            }
+            slack_client.chat_postMessage(
+                channel=slack_channel,
+                attachments=[
+                    {
+                        "color": color[alert_type],
+                        "blocks": [
+                            {
+                                "type": "section",
+                                "text": {
+                                    "type": "plain_text",
+                                    "text": f"{slack_message}",
+                                },
+                            }
+                        ],
+                    }
+                ],
+            )
+
+        except SlackApiError as e:
+            log.error(
+                {"status": "ERROR", "message": f"Error sending Slack Notification: {e}"}
             )
 
     @staticmethod

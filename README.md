@@ -38,6 +38,10 @@ There are a multitude of configurable variables that can be set in the `config.j
 
 * `SDC_AWS_CONCURRENCY_LIMIT` is the Concurrent uploads limit to S3. (*Optional*)
 
+* `SDC_AWS_SLACK_TOKEN` is the Slack token to use for sending messages to Slack. (*Optional*)
+
+* `SDC_AWS_SLACK_CHANNEL` is the Slack channel to send messages to. (*Optional*)
+
 
 ## Installation
 
@@ -105,6 +109,8 @@ These steps are to run S3Watcher using the docker container.
     -e SDC_AWS_SQS_QUEUE_NAME='-q <SDC_AWS_SQS_QUEUE_NAME>'
     -e SDC_AWS_TIMESTREAM_DB='-t <SDC_AWS_TIMESTREAM_DB>' \
     -e SDC_AWS_TIMESTREAM_TABLE='-tt <SDC_AWS_TIMESTREAM_TABLE>' \
+    -e SDC_AWS_SLACK_TOKEN='-s ' \
+    -e SDC_AWS_SLACK_CHANNEL='-sc ' \
     -e SDC_AWS_CONCURRENCY_LIMIT='-c 10' \
     -e AWS_REGION='us-east-1' \
     -v /etc/passwd:/etc/passwd \
