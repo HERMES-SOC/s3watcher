@@ -3,7 +3,7 @@ polling==0.3.2
 boto3==1.26.35
 watchdog
 slack_sdk==3.19.5
-sdc_aws_utils @ git+https://github.com/dbarrous/sdc_aws_utils.git
+sdc_aws_utils @ git+https://github.com/HERMES-SOC/sdc_aws_utils.git
 moto==4.1.6
 astropy==5.1.1
 pytest==7.2.2
