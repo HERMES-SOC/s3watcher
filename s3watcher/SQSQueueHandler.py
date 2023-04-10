@@ -4,11 +4,15 @@ import polling
 import boto3
 import boto3.s3.transfer as s3transfer
 import botocore
-import datetime
 from multiprocessing import Process, Queue
-from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
-from s3watcher import log
+
+from aws_sdc_utils.aws import (
+    create_timestream_client_session,
+    log_to_timestream,
+)
+from aws_sdc_utils.slack import get_slack_client, send_slack_notification
+from sdc_aws_utils.logging import log
+
 from s3watcher.SQSHandlerEvent import SQSHandlerEvent
 from s3watcher.SQSQueueHandlerConfig import SQSQueueHandlerConfig
 
@@ -18,13 +22,11 @@ Utility functions for s3watcher.
 
 
 class SQSQueueHandler:
-
     event_queue = Queue()
     event_history = []
     event_history_limit = 100000
 
     def __init__(self, config: SQSQueueHandlerConfig) -> None:
-
         # Set download path
         self.download_path = (
             config.path if config.path.endswith("/") else config.path + "/"
@@ -57,7 +59,6 @@ class SQSQueueHandler:
             raise ValueError(f"Error getting queue ({config.queue_name})")
 
         except self.sqs.exceptions.ClientError:
-
             log.error(f"Error getting queue ({config.queue_name})")
             raise ValueError(f"Error getting queue ({config.queue_name})")
 
@@ -74,15 +75,20 @@ class SQSQueueHandler:
 
             # Initialize S3 Transfer Manager with concurrency limit
             botocore_config = botocore.config.Config(max_pool_connections=10)
-            s3client = self.session.client("s3", config=botocore_config)
+            self.s3client = self.session.client("s3", config=botocore_config)
             transfer_config = s3transfer.TransferConfig(
                 use_threads=True,
                 max_concurrency=10,
             )
-            self.s3t = s3transfer.create_transfer_manager(s3client, transfer_config)
+            self.s3t = s3transfer.create_transfer_manager(
+                self.s3client, transfer_config
+            )
+
+            if config.timestream_db != "" and config.timestream_table != "":
+                # Create Timestream client
+                self.timestream_client = create_timestream_client_session()
 
         except self.s3.exceptions.ClientError:
-
             log.error(f"Error getting bucket ({self.bucket_name})")
             raise ValueError(f"Error getting bucket ({self.bucket_name})")
 
@@ -92,20 +98,13 @@ class SQSQueueHandler:
 
         try:
             # Initialize the slack client
-            self.slack_client = WebClient(token=config.slack_token)
+            self.slack_client = get_slack_client(config.slack_token)
 
             # Initialize the slack channel
             self.slack_channel = config.slack_channel
 
-        except SlackApiError as e:
-            error_code = int(e.response["Error"]["Code"])
-            if error_code == 404:
-                log.error(
-                    {
-                        "status": "ERROR",
-                        "message": f"Slack Token ({config.slack_token}) is invalid",
-                    }
-                )
+        except Exception as e:
+            log.error(f"Error initializing slack client: {e}")
 
         log.info(f"Queue ({self.queue_name}) found")
         log.info("S3Watcher initialized successfully")
@@ -125,7 +124,6 @@ class SQSQueueHandler:
             messages = response.get("Messages")
 
             if messages is not None:
-
                 # Queue messages
                 sqs_events = self.queue_messages(messages)
 
@@ -134,7 +132,6 @@ class SQSQueueHandler:
             return None
 
         except Exception as e:
-
             log.error(f"Error getting messages from queue ({self.queue_url}): {e}")
 
     def queue_messages(self, messages: list):
@@ -179,7 +176,7 @@ class SQSQueueHandler:
                     # Send Slack Notification about the event
                     if self.slack_client is not None:
                         slack_message = f"S3Watcher: New file downloaded from bucket {self.bucket_name} - ({file_key}) :bucket:"
-                        self._send_slack_notification(
+                        send_slack_notification(
                             slack_client=self.slack_client,
                             slack_channel=self.slack_channel,
                             slack_message=slack_message,
@@ -188,10 +185,10 @@ class SQSQueueHandler:
                     # Delete messages from AWS SQS queue
                     sqs_event.delete_message(self.sqs)
 
-                    if self.timestream_db and self.timestream_table not in [None, ""]:
+                    if self.timestream_client:
                         # Write file to Timestream
-                        self._log(
-                            boto3_session=self.session,
+                        log_to_timestream(
+                            self.timestream_client,
                             timestream_db=self.timestream_db,
                             timestream_table=self.timestream_table,
                             file_key=file_key,
@@ -210,7 +207,6 @@ class SQSQueueHandler:
         """
 
         while True:
-
             event = self.event_queue.get()
 
             if event is None:
@@ -265,7 +261,6 @@ class SQSQueueHandler:
         p2.start()
 
     def poll(self):
-
         log.info(f"Polling for messages on queue ({self.queue_name})")
 
         while True:
@@ -278,114 +273,4 @@ class SQSQueueHandler:
                 exception_handler=lambda x: log.error(
                     f"Error polling for messages on queue ({self.queue_name}): {x}"
                 ),
-            )
-
-    @staticmethod
-    def _send_slack_notification(
-        slack_client,
-        slack_channel: str,
-        slack_message: str,
-        alert_type: str = "success",
-    ) -> None:
-        """
-        Function to send a Slack Notification
-        """
-        log.info(f"Sending Slack Notification to {slack_channel}")
-        try:
-            color = {
-                "success": "#e67e22",
-                "error": "#ff0000",
-            }
-            ct = datetime.datetime.now()
-            ts = ct.strftime("%y-%m-%d %H:%M:%S")
-            slack_client.chat_postMessage(
-                channel=slack_channel,
-                text=f"{ts} - {slack_message}",
-                attachments=[
-                    {
-                        "color": color[alert_type],
-                        "blocks": [
-                            {
-                                "type": "section",
-                                "text": {
-                                    "type": "plain_text",
-                                    "text": f"{ts} - {slack_message}",
-                                },
-                            }
-                        ],
-                    }
-                ],
-            )
-
-        except SlackApiError as e:
-            log.error(
-                {"status": "ERROR", "message": f"Error sending Slack Notification: {e}"}
-            )
-
-    @staticmethod
-    def _log(
-        boto3_session,
-        action_type,
-        file_key,
-        new_file_key=None,
-        source_bucket=None,
-        destination_bucket=None,
-        timestream_db=None,
-        timestream_table=None,
-    ):
-        """
-        Function to Log to Timestream
-        """
-        log.info(f"Object ({new_file_key}) - Logging Event to Timestream")
-        CURRENT_TIME = str(int(time.time() * 1000))
-        try:
-            # Initialize Timestream Client
-            timestream = boto3_session.client("timestream-write")
-
-            if not source_bucket and not destination_bucket:
-                raise ValueError("A Source or Destination Buckets is required")
-
-            # Write to Timestream
-            timestream.write_records(
-                DatabaseName=timestream_db if timestream_db else "sdc_aws_logs",
-                TableName=timestream_table
-                if timestream_table
-                else "sdc_aws_s3_bucket_log_table",
-                Records=[
-                    {
-                        "Time": CURRENT_TIME,
-                        "Dimensions": [
-                            {"Name": "action_type", "Value": action_type},
-                            {
-                                "Name": "source_bucket",
-                                "Value": source_bucket or "N/A",
-                            },
-                            {
-                                "Name": "destination_bucket",
-                                "Value": destination_bucket or "N/A",
-                            },
-                            {"Name": "file_key", "Value": file_key},
-                            {
-                                "Name": "new_file_key",
-                                "Value": new_file_key or "N/A",
-                            },
-                            {
-                                "Name": "current file count",
-                                "Value": "N/A",
-                            },
-                        ],
-                        "MeasureName": "timestamp",
-                        "MeasureValue": str(datetime.datetime.utcnow().timestamp()),
-                        "MeasureValueType": "DOUBLE",
-                    },
-                ],
-            )
-
-            log.info(
-                (f"Object ({new_file_key}) - Event Successfully Logged to Timestream")
-            )
-
-        except botocore.exceptions.ClientError as e:
-            log.error(
-                {"status": "ERROR", "message": f"Error logging to Timestream: {e}"}
             )
