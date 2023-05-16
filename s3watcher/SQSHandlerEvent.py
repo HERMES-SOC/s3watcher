@@ -30,7 +30,6 @@ class SQSHandlerEvent:
             return False
 
     def get_file_key(self, sqs_client: Any, message_body: str) -> str:
-
         # Parse S3 Object Key from Body
         try:
             file_key = message_body.get("Records")[0].get("s3").get("object").get("key")
@@ -47,7 +46,6 @@ class SQSHandlerEvent:
         return file_key
 
     def get_event_type(self, sqs_client: Any, message_body: str) -> str:
-
         # Parse S3 Event Type from Body
         try:
             event_type = message_body.get("Records")[0].get("eventName")
@@ -73,19 +71,11 @@ class SQSHandlerEvent:
             )
 
     def delete_message(self, sqs_client: Any):
-
         try:
-
             # Delete received message from queue
-            response = sqs_client.delete_message(
+            sqs_client.delete_message(
                 QueueUrl=self.queue_url, ReceiptHandle=self.receipt_handle
             )
-
-            if response.get("ResponseMetadata").get("HTTPStatusCode") == 200:
-                log.info(f"Deleted message from queue ({self.queue_url})")
-
-            else:
-                log.error(f"Error deleting message from queue ({self.queue_url})")
 
         except Exception as e:
             log.error(f"Error deleting message from queue ({self.queue_url}): {e}")
