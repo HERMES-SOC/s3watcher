@@ -46,6 +46,7 @@ unset SDC_AWS_SLACK_CHANNEL
 unset SDC_AWS_ALLOW_DELETE
 unset SDC_AWS_USER
 unset SDC_AWS_SETUP
+unset SDC_AWS_CHECK_S3
 
 
 # Docker environment variables
@@ -105,6 +106,13 @@ else
     SDC_AWS_SETUP=""
 fi
 
+# If CHECK_S3 is true, then add it to the environment variables else make it empty
+if [ "$CHECK_S3" = true ]; then
+    SDC_AWS_CHECK_S3="true"
+else
+    SDC_AWS_CHECK_S3=""
+fi
+
 
 # Print all the environment variables
 echo "Passed Arguments:"
@@ -138,7 +146,7 @@ docker run -d \
     -e SDC_AWS_SLACK_CHANNEL="$SDC_AWS_SLACK_CHANNEL" \
     -e SDC_AWS_USER="$SDC_AWS_USER" \
     -e SDC_AWS_SETUP="$SDC_AWS_SETUP" \
-    -e CHECK_S3="$CHECK_S3" \
+    -e CHECK_S3="$SDC_AWS_CHECK_S3" \
     -v /etc/passwd:/etc/passwd \
     -v $DOWNLOAD_DIR:/download \
     -v ${HOME}/.aws/credentials:/s3watcher/.aws/credentials:ro \

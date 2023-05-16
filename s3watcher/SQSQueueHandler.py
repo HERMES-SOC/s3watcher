@@ -201,7 +201,7 @@ class SQSQueueHandler:
         """
         Function to process batch of sqs events.
         """
-        if os.getenv("CHECK_S3", True):
+        if os.getenv("CHECK_S3") == "true":
             check_s3 = True
         else:
             check_s3 = False
