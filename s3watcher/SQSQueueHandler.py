@@ -25,6 +25,9 @@ class SQSQueueHandler:
     event_history_limit = 100000
 
     def __init__(self, config: SQSQueueHandlerConfig) -> None:
+        # Set config
+        self.config = config
+
         # Set download path
         self.download_path = (
             config.path if config.path.endswith("/") else config.path + "/"
@@ -35,12 +38,14 @@ class SQSQueueHandler:
 
         # Initialize Boto3 Session
         self.session = (
-            boto3.session.Session(profile_name=config.profile)
+            boto3.session.Session(profile_name=self.config.profile)
             if config.profile != ""
             else boto3.session.Session(region=os.getenv("AWS_REGION"))
         )
 
         self.sqs = self.session.client("sqs")
+
+        self.sqs_resource = self.session.resource("sqs")
 
         # Set queue name
         self.queue_name = config.queue_name
@@ -80,18 +85,18 @@ class SQSQueueHandler:
             log.error(f"Error getting bucket ({self.bucket_name})")
             raise ValueError(f"Error getting bucket ({self.bucket_name})")
 
-        self.timestream_db = config.timestream_db
-        self.timestream_table = config.timestream_table
+        self.timestream_db = self.config.timestream_db
+        self.timestream_table = self.config.timestream_table
         self.allow_delete = config.allow_delete
 
         try:
             # Initialize the slack client
-            if config.slack_token:
-                self.slack_client = WebClient(token=config.slack_token)
+            if self.config.slack_token:
+                self.slack_client = WebClient(token=self.config.slack_token)
             else:
                 self.slack_client = None
             # Initialize the slack channel
-            self.slack_channel = config.slack_channel
+            self.slack_channel = self.config.slack_channel
 
         except SlackApiError as e:
             error_code = int(e.response["Error"]["Code"])
@@ -99,7 +104,7 @@ class SQSQueueHandler:
                 log.error(
                     {
                         "status": "ERROR",
-                        "message": f"Slack Token ({config.slack_token}) is invalid",
+                        "message": f"Slack Token ({self.config.slack_token}) is invalid",
                     }
                 )
 
@@ -108,6 +113,7 @@ class SQSQueueHandler:
     def get_messages(self, max_batch_size: int = 10) -> None:
         try:
             # Receive message from SQS queue
+            self._refresh_boto_session()
             response = self.sqs.receive_message(
                 QueueUrl=self.queue_url,
                 AttributeNames=["SentTimestamp"],
@@ -135,6 +141,7 @@ class SQSQueueHandler:
         Function to queue messages.
         """
         # Initialize SQSHandlerEvent objects
+        self._refresh_boto_session()
         sqs_events = [
             SQSHandlerEvent(self.sqs, message, self.queue_url) for message in messages
         ]
@@ -179,6 +186,7 @@ class SQSQueueHandler:
                         )
 
                     # Delete messages from AWS SQS queue
+                    self._refresh_boto_session()
                     sqs_event.delete_message(self.sqs)
 
                     if self.timestream_db and self.timestream_table not in [None, ""]:
@@ -211,6 +219,7 @@ class SQSQueueHandler:
                 keys = []
                 try:
                     # with pagination with folder prefix
+                    self._refresh_boto_session()
                     paginator = self.s3.get_paginator("list_objects_v2")
                     if self.folder not in [None, ""]:
                         prefix = f"{self.folder}/"
@@ -296,6 +305,7 @@ class SQSQueueHandler:
                 )
 
             # Download file from S3
+            self._refresh_boto_session()
             self.s3t.download_file(
                 self.bucket_name,
                 download_file_key,
@@ -470,14 +480,15 @@ class SQSQueueHandler:
         )
 
     def create_or_get_sqs_queue(self, queue_name):
-        sqs = boto3.resource("sqs")
         try:
-            queue = sqs.get_queue_by_name(QueueName=queue_name)
+            self._refresh_boto_session()
+            queue = self.sqs_resource.get_queue_by_name(QueueName=queue_name)
             log.info(f"Queue ({queue_name}) already exists")
             return queue
         except Exception:
             if os.getenv("SDC_AWS_SETUP") == "true":
-                queue = sqs.create_queue(QueueName=queue_name)
+                self._refresh_boto_session()
+                queue = self.sqs_resource.create_queue(QueueName=queue_name)
                 log.info(f"Creating SQS Queue ({queue_name})")
                 return queue
             else:
@@ -505,12 +516,10 @@ class SQSQueueHandler:
         }
         queue.set_attributes(Attributes={"Policy": json.dumps(queue_policy)})
 
-    @staticmethod
-    def configure_s3_bucket_events(bucket_name, folder, queue):
+    def configure_s3_bucket_events(self, bucket_name, folder, queue):
         if folder.endswith("/"):
             folder = folder[:-1]
 
-        s3 = boto3.client("s3")
         events_config = {
             "QueueConfigurations": [
                 {
@@ -525,7 +534,8 @@ class SQSQueueHandler:
                 }
             ]
         }
-        s3.put_bucket_notification_configuration(
+        self._refresh_boto_session()
+        self.s3.put_bucket_notification_configuration(
             Bucket=bucket_name, NotificationConfiguration=events_config
         )
 
@@ -538,3 +548,27 @@ class SQSQueueHandler:
             return bucket_name.replace("/", "", 1), ""
 
         return bucket_name.split("/", 1)[0], bucket_name.split("/", 1)[-1]
+
+    def _refresh_boto_session(self):
+        """
+        Function to Refresh Boto3 Session
+        """
+        # Initialize Boto3 Session
+        self.session = (
+            boto3.session.Session(profile_name=self.config.profile)
+            if self.config.profile != ""
+            else boto3.session.Session(region=os.getenv("AWS_REGION"))
+        )
+
+        self.sqs = self.session.client("sqs")
+        self.sqs_resource = self.session.resource("sqs")
+        self.s3 = self.session.client("s3")
+
+        # Initialize S3 Transfer Manager with concurrency limit
+        botocore_config = botocore.config.Config(max_pool_connections=10)
+        s3client = self.session.client("s3", config=botocore_config)
+        transfer_config = TransferConfig(
+            use_threads=True,
+            max_concurrency=10,
+        )
+        self.s3t = S3Transfer(s3client, transfer_config)
