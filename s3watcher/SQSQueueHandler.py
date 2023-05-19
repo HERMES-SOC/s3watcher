@@ -50,7 +50,7 @@ class SQSQueueHandler:
         # Set queue name
         self.queue_name = config.queue_name
 
-        if ":" in os.getenv("SDC_AWS_USER"):
+        if os.getenv("SDC_AWS_USER") and ":" in os.getenv("SDC_AWS_USER"):
             self.user = os.getenv("SDC_AWS_USER").split(":")
             # convert to int
             self.user = [int(i) for i in self.user]
@@ -313,7 +313,8 @@ class SQSQueueHandler:
             )
 
             # Change file permissions
-            os.chown(self.download_path + file_key, self.user[0], self.user[1])
+            if os.getenv("SDC_AWS_USER"):
+                os.chown(self.download_path + file_key, self.user[0], self.user[1])
 
             log.info(
                 f"Downloaded file ({file_key}) from S3 bucket ({self.bucket_name})"
