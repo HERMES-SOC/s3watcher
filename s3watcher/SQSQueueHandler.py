@@ -28,6 +28,9 @@ class SQSQueueHandler:
         # Set config
         self.config = config
 
+        # Time since last refresh
+        self.last_refresh_time = time.time()
+
         # Set download path
         self.download_path = (
             config.path if config.path.endswith("/") else config.path + "/"
@@ -113,7 +116,8 @@ class SQSQueueHandler:
     def get_messages(self, max_batch_size: int = 10) -> None:
         try:
             # Receive message from SQS queue
-            self._refresh_boto_session()
+            if time.time() - self.last_refresh_time >= 900:  # 900 seconds = 15 minutes
+                self._refresh_boto_session()
             response = self.sqs.receive_message(
                 QueueUrl=self.queue_url,
                 AttributeNames=["SentTimestamp"],
@@ -141,7 +145,8 @@ class SQSQueueHandler:
         Function to queue messages.
         """
         # Initialize SQSHandlerEvent objects
-        self._refresh_boto_session()
+        if time.time() - self.last_refresh_time >= 900:  # 900 seconds = 15 minutes
+            self._refresh_boto_session()
         sqs_events = [
             SQSHandlerEvent(self.sqs, message, self.queue_url) for message in messages
         ]
@@ -186,7 +191,10 @@ class SQSQueueHandler:
                         )
 
                     # Delete messages from AWS SQS queue
-                    self._refresh_boto_session()
+                    if (
+                        time.time() - self.last_refresh_time >= 900
+                    ):  # 900 seconds = 15 minutes
+                        self._refresh_boto_session()
                     sqs_event.delete_message(self.sqs)
 
                     if self.timestream_db and self.timestream_table not in [None, ""]:
@@ -219,7 +227,10 @@ class SQSQueueHandler:
                 keys = []
                 try:
                     # with pagination with folder prefix
-                    self._refresh_boto_session()
+                    if (
+                        time.time() - self.last_refresh_time >= 900
+                    ):  # 900 seconds = 15 minutes
+                        self._refresh_boto_session()
                     paginator = self.s3.get_paginator("list_objects_v2")
                     if self.folder not in [None, ""]:
                         prefix = f"{self.folder}/"
@@ -305,7 +316,8 @@ class SQSQueueHandler:
                 )
 
             # Download file from S3
-            self._refresh_boto_session()
+            if time.time() - self.last_refresh_time >= 900:  # 900 seconds = 15 minutes
+                self._refresh_boto_session()
             self.s3t.download_file(
                 self.bucket_name,
                 download_file_key,
@@ -482,13 +494,17 @@ class SQSQueueHandler:
 
     def create_or_get_sqs_queue(self, queue_name):
         try:
-            self._refresh_boto_session()
+            if time.time() - self.last_refresh_time >= 900:  # 900 seconds = 15 minutes
+                self._refresh_boto_session()
             queue = self.sqs_resource.get_queue_by_name(QueueName=queue_name)
             log.info(f"Queue ({queue_name}) already exists")
             return queue
         except Exception:
             if os.getenv("SDC_AWS_SETUP") == "true":
-                self._refresh_boto_session()
+                if (
+                    time.time() - self.last_refresh_time >= 900
+                ):  # 900 seconds = 15 minutes
+                    self._refresh_boto_session()
                 queue = self.sqs_resource.create_queue(QueueName=queue_name)
                 log.info(f"Creating SQS Queue ({queue_name})")
                 return queue
@@ -535,7 +551,8 @@ class SQSQueueHandler:
                 }
             ]
         }
-        self._refresh_boto_session()
+        if time.time() - self.last_refresh_time >= 900:  # 900 seconds = 15 minutes
+            self._refresh_boto_session()
         self.s3.put_bucket_notification_configuration(
             Bucket=bucket_name, NotificationConfiguration=events_config
         )
@@ -573,3 +590,4 @@ class SQSQueueHandler:
             max_concurrency=10,
         )
         self.s3t = S3Transfer(s3client, transfer_config)
+        self.last_refresh_time = time.time()
