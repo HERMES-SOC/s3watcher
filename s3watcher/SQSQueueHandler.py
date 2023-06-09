@@ -559,13 +559,11 @@ class SQSQueueHandler:
 
     @staticmethod
     def extract_folder_from_bucket_name(bucket_name):
-        if "/" not in bucket_name:
-            return bucket_name, ""
-
-        if len(bucket_name.split("/")) > 2:
-            return bucket_name.replace("/", "", 1), ""
-
-        return bucket_name.split("/", 1)[0], bucket_name.split("/", 1)[-1]
+        split_bucket_name = bucket_name.split("/", 1)
+        if len(split_bucket_name) > 1:
+            return split_bucket_name[0], split_bucket_name[1]
+        else:
+            return split_bucket_name[0], ""
 
     def _refresh_boto_session(self):
         """
