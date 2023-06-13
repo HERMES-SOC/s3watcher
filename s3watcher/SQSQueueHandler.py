@@ -537,24 +537,31 @@ class SQSQueueHandler:
         if folder.endswith("/"):
             folder = folder[:-1]
 
-        events_config = {
-            "QueueConfigurations": [
-                {
-                    "Id": f"{bucket_name}-{folder}-events",
-                    "QueueArn": queue.attributes["QueueArn"],
-                    "Events": [
-                        "s3:ObjectCreated:*",
-                    ],
-                    "Filter": {
-                        "Key": {"FilterRules": [{"Name": "prefix", "Value": folder}]}
-                    },
-                }
-            ]
+        new_config = {
+            "Id": f"{bucket_name}-{folder}-events",
+            "QueueArn": queue.attributes["QueueArn"],
+            "Events": [
+                "s3:ObjectCreated:*",
+            ],
+            "Filter": {
+                "Key": {"FilterRules": [{"Name": "prefix", "Value": folder}]}
+            },
         }
+
         if time.time() - self.last_refresh_time >= 900:  # 900 seconds = 15 minutes
             self._refresh_boto_session()
+
+        current_config = self.s3.get_bucket_notification_configuration(Bucket=bucket_name)
+
+        queue_configurations = current_config.get('QueueConfigurations', [])
+        
+        # Check if configuration already exists
+        if not any(conf for conf in queue_configurations if conf['Id'] == new_config['Id']):
+            queue_configurations.append(new_config)
+
         self.s3.put_bucket_notification_configuration(
-            Bucket=bucket_name, NotificationConfiguration=events_config
+            Bucket=bucket_name, 
+            NotificationConfiguration={'QueueConfigurations': queue_configurations}
         )
 
     @staticmethod

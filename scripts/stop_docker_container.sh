@@ -2,8 +2,30 @@
 
 # Script to stop S3Watcher docker container
 
+# Default config file
+CONFIG_FILE="s3watcher.config"
+
+# Parse the options
+while getopts "c:" opt; do
+    case $opt in
+        c)
+            CONFIG_FILE=$OPTARG
+            ;;
+        \?)
+            echo "Invalid option: -$OPTARG" >&2
+            exit 1
+            ;;
+    esac
+done
+
+# Verify the config file exists
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "Config file $CONFIG_FILE does not exist"
+    exit 1
+fi
+
 # Get variables
-source s3watcher.config
+source $CONFIG_FILE
 
 # Stop the docker container if it is already running
 if [ "$(docker ps | grep $CONTAINER_NAME)" ]; then

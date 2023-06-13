@@ -2,8 +2,32 @@
 
 # Script to build and run the S3Watcher docker container
 
+#!/bin/bash
+
+# Default config file
+CONFIG_FILE="s3watcher.config"
+
+# Parse the options
+while getopts "c:" opt; do
+    case $opt in
+        c)
+            CONFIG_FILE=$OPTARG
+            ;;
+        \?)
+            echo "Invalid option: -$OPTARG" >&2
+            exit 1
+            ;;
+    esac
+done
+
+# Verify the config file exists
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "Config file $CONFIG_FILE does not exist"
+    exit 1
+fi
+
 # Get variables
-source s3watcher.config
+source $CONFIG_FILE
 
 # Verify that the directory to be watched exists
 if [ ! -d "$DOWNLOAD_DIR" ]; then
@@ -26,7 +50,7 @@ DOCKERFILE_PATH=$(dirname $SCRIPT_PATH)
 echo "Dockerfile path: $DOCKERFILE_PATH"
 
 # Stop the docker container using the stop_docker_container.sh script
-$SCRIPT_PATH/stop_docker_container.sh
+$SCRIPT_PATH/stop_docker_container.sh -c $CONFIG_FILE
 
 # Build the docker image
 echo "Building docker image $IMAGE_NAME"
