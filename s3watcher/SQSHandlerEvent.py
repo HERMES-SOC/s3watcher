@@ -1,6 +1,6 @@
 import json
 from typing import Any
-from urllib.parse import unquote
+from urllib.parse import unquote_plus
 from s3watcher import log
 
 
@@ -34,7 +34,7 @@ class SQSHandlerEvent:
         # Parse S3 Object Key from Body
         try:
             file_key = message_body.get("Records")[0].get("s3").get("object").get("key")
-            file_key = unquote(file_key)  # URL decode
+            file_key = unquote_plus(file_key)  # URL decode
 
         except Exception:
             file_key = None
