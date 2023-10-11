@@ -1,7 +1,7 @@
 ## Dockerfile for building a container that runs s3watcher
 
 # Base image
-FROM python:3.11
+FROM python:3.11.4-slim-bullseye
 
 # Install Curl
 RUN apt-get update && \
