@@ -451,22 +451,22 @@ class SQSQueueHandler:
         if time.time() - self.last_refresh_time >= 900:  # 900 seconds = 15 minutes
             self._refresh_boto_session()
 
-        # Fetch the current configuration
-        current_config = self.s3.get_bucket_notification_configuration(
-            Bucket=bucket_name
-        )
+        current_config = self.s3.get_bucket_notification_configuration(Bucket=bucket_name)
 
-        # Update or append the new queue configuration
-        queue_configurations = current_config.get("QueueConfigurations", [])
-        if not any(
-            conf for conf in queue_configurations if conf["Id"] == new_config["Id"]
-        ):
+        # Remove any invalid keys (like 'ResponseMetadata') from the current configuration
+        valid_keys = ['TopicConfigurations', 'QueueConfigurations', 'LambdaFunctionConfigurations', 'EventBridgeConfiguration']
+        current_config = {k: v for k, v in current_config.items() if k in valid_keys}
+
+        # Update the QueueConfigurations
+        queue_configurations = current_config.get('QueueConfigurations', [])
+        if not any(conf for conf in queue_configurations if conf['Id'] == new_config['Id']):
             queue_configurations.append(new_config)
-        current_config["QueueConfigurations"] = queue_configurations
+        current_config['QueueConfigurations'] = queue_configurations
 
-        # Put back the updated configuration, preserving all other configurations
+        # Update the bucket notification configuration
         self.s3.put_bucket_notification_configuration(
-            Bucket=bucket_name, NotificationConfiguration=current_config
+            Bucket=bucket_name, 
+            NotificationConfiguration=current_config
         )
 
     @staticmethod
