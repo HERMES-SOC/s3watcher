@@ -159,6 +159,7 @@ echo "USE_FALLBACK: $USE_FALLBACK"
 
 docker run -d \
     --restart=always \
+    --network host \
     --name=$CONTAINER_NAME \
     -e SDC_AWS_S3_BUCKET="$SDC_AWS_S3_BUCKET" \
     -e SDC_AWS_SQS_QUEUE_NAME="$SDC_AWS_SQS_QUEUE_NAME" \
