@@ -5,7 +5,7 @@ FROM python:3.11.4-slim-bullseye
 
 # Install Curl
 RUN apt-get update && \
-    apt-get install -y curl
+    apt-get install -y curl git
 
 # Install Unzip
 RUN apt-get install -y unzip

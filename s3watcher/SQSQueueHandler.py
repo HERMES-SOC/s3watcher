@@ -5,7 +5,6 @@ import json
 import boto3
 from boto3.s3.transfer import TransferConfig, S3Transfer
 import botocore
-import datetime
 from multiprocessing import Process, Queue
 import concurrent.futures
 from slack_sdk import WebClient
@@ -13,6 +12,11 @@ from slack_sdk.errors import SlackApiError
 from s3watcher import log
 from s3watcher.SQSHandlerEvent import SQSHandlerEvent
 from s3watcher.SQSQueueHandlerConfig import SQSQueueHandlerConfig
+from sdc_aws_utils.aws import (
+    create_timestream_client_session,
+    log_to_timestream,
+)
+from sdc_aws_utils.slack import send_pipeline_notification
 
 """
 Utility functions for s3watcher.
@@ -92,6 +96,14 @@ class SQSQueueHandler:
         self.timestream_table = self.config.timestream_table
         self.allow_delete = config.allow_delete
 
+        try: # Create Timestream session
+            self.timestream_client = create_timestream_client_session(
+                boto3_session=self.session
+            )
+        except Exception as e:
+            log.error(f"Error creating Timestream session: {e}")
+            self.timestream_client = None
+            
         try:
             # Initialize the slack client
             if self.config.slack_token:
@@ -182,12 +194,13 @@ class SQSQueueHandler:
                     self.download_file_from_s3(file_key)
 
                     # Send Slack Notification about the event
-                    if self.slack_client is not None:
-                        slack_message = f"S3Watcher: New file downloaded from bucket {self.bucket_name} - ({file_key}) :bucket:"
-                        self._send_slack_notification(
+                    if self.slack_client:
+                        # Send Slack Notification
+                        send_pipeline_notification(
                             slack_client=self.slack_client,
                             slack_channel=self.slack_channel,
-                            slack_message=slack_message,
+                            path=file_key,
+                            alert_type="download",
                         )
 
                     # Delete messages from AWS SQS queue
@@ -197,17 +210,16 @@ class SQSQueueHandler:
                         self._refresh_boto_session()
                     sqs_event.delete_message(self.sqs)
 
-                    if self.timestream_db and self.timestream_table not in [None, ""]:
+                    if self.timestream_client:
                         # Write file to Timestream
-                        self._log(
-                            boto3_session=self.session,
-                            timestream_db=self.timestream_db,
-                            timestream_table=self.timestream_table,
+                        log_to_timestream(
+                            timestream_client=self.timestream_client,
                             file_key=file_key,
                             new_file_key=file_key,
                             source_bucket=self.bucket_name,
                             action_type="PUT",
                             destination_bucket="External Server",
+                            environment="PRODUCTION",
                         )
 
         except Exception as e:
@@ -374,116 +386,6 @@ class SQSQueueHandler:
                 ),
             )
 
-    @staticmethod
-    def _send_slack_notification(
-        slack_client,
-        slack_channel: str,
-        slack_message: str,
-        alert_type: str = "success",
-    ) -> None:
-        """
-        Function to send a Slack Notification
-        """
-        log.info(f"Sending Slack Notification to {slack_channel}")
-        try:
-            color = {
-                "success": "#e67e22",
-                "error": "#ff0000",
-            }
-            ct = datetime.datetime.now()
-            ts = ct.strftime("%y-%m-%d %H:%M:%S")
-            slack_client.chat_postMessage(
-                channel=slack_channel,
-                text=f"{ts} - {slack_message}",
-                attachments=[
-                    {
-                        "color": color[alert_type],
-                        "blocks": [
-                            {
-                                "type": "section",
-                                "text": {
-                                    "type": "plain_text",
-                                    "text": f"{ts} - {slack_message}",
-                                },
-                            }
-                        ],
-                    }
-                ],
-            )
-
-        except SlackApiError as e:
-            log.error(
-                {"status": "ERROR", "message": f"Error sending Slack Notification: {e}"}
-            )
-
-    @staticmethod
-    def _log(
-        boto3_session,
-        action_type,
-        file_key,
-        new_file_key=None,
-        source_bucket=None,
-        destination_bucket=None,
-        timestream_db=None,
-        timestream_table=None,
-    ):
-        """
-        Function to Log to Timestream
-        """
-        log.info(f"Object ({new_file_key}) - Logging Event to Timestream")
-        CURRENT_TIME = str(int(time.time() * 1000))
-        try:
-            # Initialize Timestream Client
-            timestream = boto3_session.client("timestream-write")
-
-            if not source_bucket and not destination_bucket:
-                raise ValueError("A Source or Destination Buckets is required")
-
-            # Write to Timestream
-            timestream.write_records(
-                DatabaseName=timestream_db if timestream_db else "sdc_aws_logs",
-                TableName=timestream_table
-                if timestream_table
-                else "sdc_aws_s3_bucket_log_table",
-                Records=[
-                    {
-                        "Time": CURRENT_TIME,
-                        "Dimensions": [
-                            {"Name": "action_type", "Value": action_type},
-                            {
-                                "Name": "source_bucket",
-                                "Value": source_bucket or "N/A",
-                            },
-                            {
-                                "Name": "destination_bucket",
-                                "Value": destination_bucket or "N/A",
-                            },
-                            {"Name": "file_key", "Value": file_key},
-                            {
-                                "Name": "new_file_key",
-                                "Value": new_file_key or "N/A",
-                            },
-                            {
-                                "Name": "current file count",
-                                "Value": "N/A",
-                            },
-                        ],
-                        "MeasureName": "timestamp",
-                        "MeasureValue": str(datetime.datetime.utcnow().timestamp()),
-                        "MeasureValueType": "DOUBLE",
-                    },
-                ],
-            )
-
-            log.info(
-                (f"Object ({new_file_key}) - Event Successfully Logged to Timestream")
-            )
-
-        except botocore.exceptions.ClientError as e:
-            log.error(
-                {"status": "ERROR", "message": f"Error logging to Timestream: {e}"}
-            )
-
     def setup(self):
         self.add_permissions_to_sqs(self.queue, self.bucket_name)
         self.configure_s3_bucket_events(self.bucket_name, self.folder, self.queue)
@@ -543,27 +445,28 @@ class SQSQueueHandler:
             "Events": [
                 "s3:ObjectCreated:*",
             ],
-            "Filter": {
-                "Key": {"FilterRules": [{"Name": "prefix", "Value": folder}]}
-            },
+            "Filter": {"Key": {"FilterRules": [{"Name": "prefix", "Value": folder}]}},
         }
 
         if time.time() - self.last_refresh_time >= 900:  # 900 seconds = 15 minutes
             self._refresh_boto_session()
 
         # Fetch the current configuration
-        current_config = self.s3.get_bucket_notification_configuration(Bucket=bucket_name)
+        current_config = self.s3.get_bucket_notification_configuration(
+            Bucket=bucket_name
+        )
 
         # Update or append the new queue configuration
-        queue_configurations = current_config.get('QueueConfigurations', [])
-        if not any(conf for conf in queue_configurations if conf['Id'] == new_config['Id']):
+        queue_configurations = current_config.get("QueueConfigurations", [])
+        if not any(
+            conf for conf in queue_configurations if conf["Id"] == new_config["Id"]
+        ):
             queue_configurations.append(new_config)
-        current_config['QueueConfigurations'] = queue_configurations
+        current_config["QueueConfigurations"] = queue_configurations
 
         # Put back the updated configuration, preserving all other configurations
         self.s3.put_bucket_notification_configuration(
-            Bucket=bucket_name, 
-            NotificationConfiguration=current_config
+            Bucket=bucket_name, NotificationConfiguration=current_config
         )
 
     @staticmethod
