@@ -236,6 +236,7 @@ class SQSQueueHandler:
         while True:
             if check_s3:
                 # Get all keys in bucket
+                log.info("Checking with S3... This might take awhile depending on how manys items in the bucket...")
                 keys = []
                 try:
                     # with pagination with folder prefix
