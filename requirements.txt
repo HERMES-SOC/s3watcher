@@ -1,3 +1,4 @@
+pyyaml==1.26.4
 sdc_aws_utils @ git+https://github.com/HERMES-SOC/sdc_aws_utils.git
 hermes_core @ git+https://github.com/HERMES-SOC/hermes_core.git
 pyyaml==6.0.1
