@@ -54,7 +54,7 @@ $SCRIPT_PATH/stop_docker_container.sh -c $CONFIG_FILE
 
 # Build the docker image
 echo "Building docker image $IMAGE_NAME"
-docker build -t $IMAGE_NAME $DOCKERFILE_PATH
+docker build --network host -t $IMAGE_NAME $DOCKERFILE_PATH
 
 # Run the docker container
 echo "Running docker container $CONTAINER_NAME"
