@@ -359,6 +359,9 @@ class SQSQueueHandler:
             if not os.path.exists(directory):
                 os.makedirs(directory)
                 log.info(f"Created directory ({directory})")
+                # Set ownership for the created directory
+                if os.getenv("SDC_AWS_USER"):
+                    os.chown(directory, self.user[0], self.user[1])
         except Exception as e:
             log.error(f"Error creating directory ({directory}): {e}")
 
